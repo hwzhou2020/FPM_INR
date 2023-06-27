@@ -17,7 +17,7 @@ from utils import newcmp
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-def get_sub_spectrum(img_complex, led_num, x_0, y_0, x_1, y_1, spectrum_mask):
+def get_sub_spectrum(img_complex, led_num, x_0, y_0, x_1, y_1, spectrum_mask,epoch):
     O = torch.fft.fftshift(torch.fft.fft2(img_complex))
     O_sub = torch.stack([
         O[:, x_0[i]:x_1[i], y_0[i]:y_1[i]] for i in range(len(led_num))
@@ -25,6 +25,42 @@ def get_sub_spectrum(img_complex, led_num, x_0, y_0, x_1, y_1, spectrum_mask):
     O_sub = O_sub * spectrum_mask
     o_sub = torch.fft.ifft2(torch.fft.ifftshift(O_sub))
     oI_sub = torch.abs(o_sub) ** 2
+
+    # # For debug purpose: Sanity check spectrum mask
+    
+    # if epoch % 10 == 0:
+    #     for idx in range((oI_sub.size())[1]):
+    #         fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(10, 10))
+        
+    #         im = axs[0,0].imshow(np.log(np.abs(O_sub[0,idx,:,:].detach().cpu().numpy())+1), cmap='gray')
+    #         axs[0,0].axis('image')
+    #         axs[0,0].set_title('Reconstructed spectrum')
+    #         divider = make_axes_locatable(axs[0,0])
+    #         cax = divider.append_axes('right', size='5%', pad=0.05)
+    #         fig.colorbar(im, cax=cax, orientation='vertical')
+        
+    #         im = axs[0,1].imshow(oI_sub[0,idx,:,:].detach().cpu().numpy(), cmap="gray")
+    #         axs[0,1].axis('image')
+    #         axs[0,1].set_title('Guessed capture')
+    #         divider = make_axes_locatable(axs[0,1])
+    #         cax = divider.append_axes('right', size='5%', pad=0.05)
+    #         fig.colorbar(im, cax=cax, orientation='vertical')
+             
+    #         im = axs[1,0].imshow(np.abs(spectrum_mask[0,idx,:,:].detach().cpu().numpy()), cmap='gray')
+    #         axs[1,0].axis('image')
+    #         axs[1,0].set_title('Sub aperture amplitude')
+    #         divider = make_axes_locatable(axs[1,0])
+    #         cax = divider.append_axes('right', size='5%', pad=0.05)
+    #         fig.colorbar(im, cax=cax, orientation='vertical')
+        
+    #         im = axs[1,1].imshow(np.angle(spectrum_mask[0,idx,:,:].detach().cpu().numpy()), cmap="gray")
+    #         axs[1,1].axis('image')
+    #         axs[1,1].set_title('Sub aperture phase')
+    #         divider = make_axes_locatable(axs[1,1])
+    #         cax = divider.append_axes('right', size='5%', pad=0.05)
+    #         fig.colorbar(im, cax=cax, orientation='vertical')
+            
+    #         plt.show()
     
     return oI_sub
 
@@ -35,7 +71,7 @@ if __name__ == "__main__":
     parser.add_argument('--num_epochs', default=100, type=int)
     parser.add_argument('--lr_decay_step', default=30, type=int)
     parser.add_argument('--num_feats', default=32, type=int)
-    parser.add_argument('--fit_3D', action='store_true')
+    parser.add_argument('--fit_3D',default=True, action='store_true')
     args = parser.parse_args()
 
     fit_3D = args.fit_3D
@@ -233,7 +269,9 @@ if __name__ == "__main__":
     kyy = kyy - np.mean(kyy)
     krr = np.sqrt(kxx ** 2 + kyy ** 2)
     mask_k = k0 ** 2 - krr ** 2 > 0
-    kzz = np.sqrt(mask_k * (k0 ** 2 - krr ** 2))  
+    kzz_ampli = mask_k * np.abs(np.sqrt((k0 ** 2 - krr.astype('complex64') ** 2)) )  ########## fixed bug here 
+    kzz_phase = np.angle(np.sqrt((k0 ** 2 - krr.astype('complex64') ** 2)) )
+    kzz = kzz_ampli * np.exp(1j*kzz_phase)
 
     # Define Pupil support        
     Fx1, Fy1 = np.meshgrid(np.arange(-N / 2, N / 2), np.arange(-M / 2, M / 2))
@@ -257,16 +295,16 @@ if __name__ == "__main__":
         num_feats=num_feats,
         Pupil0=Pupil0,
         n_views=ID_len,
-        z_min=-20.0,
-        z_max=10.0
+        z_min=-10.0,
+        z_max=20.0
     ).to(device)
 
-    optimizer = torch.optim.Adam(lr=1e-3, params=model.parameters())
+    optimizer = torch.optim.Adam(lr=1e-2, params=model.parameters())
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=lr_decay_step, gamma=0.1)
 
     t = tqdm.trange(num_epochs + 1)
     for epoch in t:
-        led_idices = list(np.random.permutation(ID_len))
+        led_idices = list(np.arange(ID_len)) # list(np.random.permutation(ID_len))
         _fill = len(led_idices) - (len(led_idices) % led_batch_size)
         led_idices = led_idices + list(np.random.choice(led_idices, _fill, replace=False))
 
@@ -276,11 +314,9 @@ if __name__ == "__main__":
             #     dzs = torch.FloatTensor([-1.2500, 1.7500, 4.7500, 7.7500, 10.7500, 13.7500, 16.7500, 19.7500]).to(device)
             
             
-            ############################# Modified to single plane    
-            dzs = torch.FloatTensor([2.0]).to(device)
-        
-        
-        
+            ############################# Modified to single plane 
+            ############################# Not working at large defocus distance (single plane)
+            dzs = torch.FloatTensor([20.0]).to(device)
         
         else:
             dzs = torch.FloatTensor([0.0]).to(device)
@@ -298,18 +334,18 @@ if __name__ == "__main__":
                 dfmask = torch.exp(1j * kzz.repeat(dz.shape[0], 1, 1) * dz[:, None, None].repeat(1, kzz.shape[1], kzz.shape[2]))
                 led_num = led_idices[it * led_batch_size: (it + 1) * led_batch_size]
                 dfmask = dfmask.unsqueeze(1).repeat(1, len(led_num), 1, 1)
-                spectrum_mask_real = Pupil0.repeat(len(dz), len(led_num), 1, 1) * torch.real(dfmask) / (MAGimg**2)
-                spectrum_mask_imag = Pupil0.repeat(len(dz), len(led_num), 1, 1) * torch.imag(dfmask) / (MAGimg**2)
-                spectrum_mask = torch.complex(spectrum_mask_real,spectrum_mask_imag)
+                spectrum_mask_ampli = Pupil0.repeat(len(dz), len(led_num), 1, 1) * torch.abs(dfmask) / (MAGimg**2)
+                spectrum_mask_phase = Pupil0.repeat(len(dz), len(led_num), 1, 1) * torch.angle(dfmask) / (MAGimg**2)
+                spectrum_mask = spectrum_mask_ampli * torch.exp(1j*spectrum_mask_phase)
                 
-                img_real, img_imag = model_fn(dz)
-                img_complex = torch.complex(img_real, img_imag)
+                img_ampli, img_phase = model_fn(dz)
+                img_complex = img_ampli * torch.exp(1j*img_phase)
                 uo, vo = ledpos_true[led_num, 0], ledpos_true[led_num, 1]
                 x_0, x_1 = vo - M // 2, vo + M // 2
                 y_0, y_1 = uo - N // 2, uo + N // 2
 
-                oI_sub = get_sub_spectrum(img_complex, led_num, x_0, y_0, x_1, y_1, spectrum_mask)
-
+                oI_sub = get_sub_spectrum(img_complex, led_num, x_0, y_0, x_1, y_1, spectrum_mask, it)
+                
                 oI_cap = Isum[:, :, led_num]
                 oI_cap = oI_cap.permute(2, 0, 1).unsqueeze(0).repeat(len(dz), 1, 1, 1)
 
@@ -324,8 +360,8 @@ if __name__ == "__main__":
                 t.set_postfix(Loss = f'{loss.item():.4e}', PSNR = f'{psnr:.2f}')
                 optimizer.step()
                 
-                # # Sanity check oI_cap and oI_sub
-                # if epoch == 40:
+                # # For debug purpose: Sanity check oI_cap and oI_sub
+                # if epoch == 100:
                 #     for idx in range((oI_cap.size())[1]):
                 #         i = it*led_batch_size + idx
                 #         fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
@@ -350,9 +386,9 @@ if __name__ == "__main__":
         scheduler.step()
     
         if epoch % 100 == 0 or (epoch % 10 == 0 and epoch < 50) or epoch == num_epochs:
-            img_complex = img_complex[0]
-            amplitude = torch.abs(img_complex).cpu().detach().numpy() ** 2
-            phase = torch.angle(img_complex).cpu().detach().numpy()
+            # img_complex = img_complex[0]
+            amplitude = (img_ampli[0]).cpu().detach().numpy() ** 2
+            phase = (img_phase[0]).cpu().detach().numpy()
 
             fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
 
@@ -389,7 +425,7 @@ if __name__ == "__main__":
         #     imageio.mimsave(f'{vis_dir}/vid/{epoch}.mp4', np.uint8(imgs * 255), fps=15, quality=8)
 
 
-
+    # # For save debug video
     # writer = imageio.get_writer('./vis/Compare.mp4', fps=3)
     
     # for ids in range(64):
