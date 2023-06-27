@@ -24,43 +24,44 @@ def get_sub_spectrum(img_complex, led_num, x_0, y_0, x_1, y_1, spectrum_mask,epo
     ], dim = 1)
     O_sub = O_sub * spectrum_mask
     o_sub = torch.fft.ifft2(torch.fft.ifftshift(O_sub))
-    oI_sub = torch.abs(o_sub) ** 2
+    oI_sub = torch.abs(o_sub)
 
-    # # For debug purpose: Sanity check spectrum mask
+    # For debug purpose: Sanity check spectrum mask
     
-    # if epoch % 10 == 0:
-    #     for idx in range((oI_sub.size())[1]):
-    #         fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(10, 10))
-        
-    #         im = axs[0,0].imshow(np.log(np.abs(O_sub[0,idx,:,:].detach().cpu().numpy())+1), cmap='gray')
-    #         axs[0,0].axis('image')
-    #         axs[0,0].set_title('Reconstructed spectrum')
-    #         divider = make_axes_locatable(axs[0,0])
-    #         cax = divider.append_axes('right', size='5%', pad=0.05)
-    #         fig.colorbar(im, cax=cax, orientation='vertical')
-        
-    #         im = axs[0,1].imshow(oI_sub[0,idx,:,:].detach().cpu().numpy(), cmap="gray")
-    #         axs[0,1].axis('image')
-    #         axs[0,1].set_title('Guessed capture')
-    #         divider = make_axes_locatable(axs[0,1])
-    #         cax = divider.append_axes('right', size='5%', pad=0.05)
-    #         fig.colorbar(im, cax=cax, orientation='vertical')
-             
-    #         im = axs[1,0].imshow(np.abs(spectrum_mask[0,idx,:,:].detach().cpu().numpy()), cmap='gray')
-    #         axs[1,0].axis('image')
-    #         axs[1,0].set_title('Sub aperture amplitude')
-    #         divider = make_axes_locatable(axs[1,0])
-    #         cax = divider.append_axes('right', size='5%', pad=0.05)
-    #         fig.colorbar(im, cax=cax, orientation='vertical')
-        
-    #         im = axs[1,1].imshow(np.angle(spectrum_mask[0,idx,:,:].detach().cpu().numpy()), cmap="gray")
-    #         axs[1,1].axis('image')
-    #         axs[1,1].set_title('Sub aperture phase')
-    #         divider = make_axes_locatable(axs[1,1])
-    #         cax = divider.append_axes('right', size='5%', pad=0.05)
-    #         fig.colorbar(im, cax=cax, orientation='vertical')
-            
-    #         plt.show()
+    if epoch % 100 == 0 and epoch != 0:
+    # # for idx in range((oI_sub.size())[1]):
+        idx = 1
+        fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(10, 10))
+    
+        im = axs[0,0].imshow(np.log(np.abs(O_sub[0,idx,:,:].detach().cpu().numpy())+1), cmap='gray')
+        axs[0,0].axis('image')
+        axs[0,0].set_title('Reconstructed spectrum')
+        divider = make_axes_locatable(axs[0,0])
+        cax = divider.append_axes('right', size='5%', pad=0.05)
+        fig.colorbar(im, cax=cax, orientation='vertical')
+    
+        im = axs[0,1].imshow(oI_sub[0,idx,:,:].detach().cpu().numpy(), cmap="gray")
+        axs[0,1].axis('image')
+        axs[0,1].set_title('Guessed capture')
+        divider = make_axes_locatable(axs[0,1])
+        cax = divider.append_axes('right', size='5%', pad=0.05)
+        fig.colorbar(im, cax=cax, orientation='vertical')
+         
+        im = axs[1,0].imshow(np.abs(spectrum_mask[0,idx,:,:].detach().cpu().numpy()), cmap='gray')
+        axs[1,0].axis('image')
+        axs[1,0].set_title('Sub aperture amplitude')
+        divider = make_axes_locatable(axs[1,0])
+        cax = divider.append_axes('right', size='5%', pad=0.05)
+        fig.colorbar(im, cax=cax, orientation='vertical')
+    
+        im = axs[1,1].imshow(np.angle(spectrum_mask[0,idx,:,:].detach().cpu().numpy()), cmap="gray")
+        axs[1,1].axis('image')
+        axs[1,1].set_title('Sub aperture phase')
+        divider = make_axes_locatable(axs[1,1])
+        cax = divider.append_axes('right', size='5%', pad=0.05)
+        fig.colorbar(im, cax=cax, orientation='vertical')
+    
+        plt.show()
     
     return oI_sub
 
@@ -287,7 +288,7 @@ if __name__ == "__main__":
     kzz = torch.from_numpy(kzz).to(device).unsqueeze(0)
     Isum = torch.from_numpy(Isum).to(device)
 
-    led_batch_size = 64
+    led_batch_size = 4
 
     model = FullModel(
         w=MM,
@@ -299,7 +300,7 @@ if __name__ == "__main__":
         z_max=20.0
     ).to(device)
 
-    optimizer = torch.optim.Adam(lr=1e-2, params=model.parameters())
+    optimizer = torch.optim.Adam(lr=1e-3, params=model.parameters())
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=lr_decay_step, gamma=0.1)
 
     t = tqdm.trange(num_epochs + 1)
@@ -316,7 +317,7 @@ if __name__ == "__main__":
             
             ############################# Modified to single plane 
             ############################# Not working at large defocus distance (single plane)
-            dzs = torch.FloatTensor([20.0]).to(device)
+            dzs = torch.FloatTensor([10.0]).to(device)
         
         else:
             dzs = torch.FloatTensor([0.0]).to(device)
@@ -334,19 +335,21 @@ if __name__ == "__main__":
                 dfmask = torch.exp(1j * kzz.repeat(dz.shape[0], 1, 1) * dz[:, None, None].repeat(1, kzz.shape[1], kzz.shape[2]))
                 led_num = led_idices[it * led_batch_size: (it + 1) * led_batch_size]
                 dfmask = dfmask.unsqueeze(1).repeat(1, len(led_num), 1, 1)
-                spectrum_mask_ampli = Pupil0.repeat(len(dz), len(led_num), 1, 1) * torch.abs(dfmask) / (MAGimg**2)
-                spectrum_mask_phase = Pupil0.repeat(len(dz), len(led_num), 1, 1) * torch.angle(dfmask) / (MAGimg**2)
+                ##################################### bug here
+                spectrum_mask_ampli = Pupil0.repeat(len(dz), len(led_num), 1, 1) * torch.abs(dfmask) #/ (MAGimg**2)
+                # phase should be summation
+                spectrum_mask_phase = Pupil0.repeat(len(dz), len(led_num), 1, 1) * torch.angle(dfmask) #/ (MAGimg**2)
                 spectrum_mask = spectrum_mask_ampli * torch.exp(1j*spectrum_mask_phase)
                 
                 img_ampli, img_phase = model_fn(dz)
                 img_complex = img_ampli * torch.exp(1j*img_phase)
-                uo, vo = ledpos_true[led_num, 0], ledpos_true[led_num, 1]
+                uo, vo = ledpos_true[led_num, 0], ledpos_true[led_num, 1] 
                 x_0, x_1 = vo - M // 2, vo + M // 2
                 y_0, y_1 = uo - N // 2, uo + N // 2
 
-                oI_sub = get_sub_spectrum(img_complex, led_num, x_0, y_0, x_1, y_1, spectrum_mask, it)
+                oI_sub = get_sub_spectrum(img_complex, led_num, x_0, y_0, x_1, y_1, spectrum_mask, epoch)
                 
-                oI_cap = Isum[:, :, led_num]
+                oI_cap = torch.sqrt(Isum[:, :, led_num])
                 oI_cap = oI_cap.permute(2, 0, 1).unsqueeze(0).repeat(len(dz), 1, 1, 1)
 
                     
@@ -360,28 +363,28 @@ if __name__ == "__main__":
                 t.set_postfix(Loss = f'{loss.item():.4e}', PSNR = f'{psnr:.2f}')
                 optimizer.step()
                 
-                # # For debug purpose: Sanity check oI_cap and oI_sub
-                # if epoch == 100:
-                #     for idx in range((oI_cap.size())[1]):
-                #         i = it*led_batch_size + idx
-                #         fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
+                # For debug purpose: Sanity check oI_cap and oI_sub
+                if epoch == 100:
+                    for idx in range((oI_cap.size())[1]):
+                        i = it*led_batch_size + idx
+                        fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
     
-                #         im = axs[0].imshow(oI_cap[0,idx,:,:].detach().cpu().numpy(), cmap='gray')
-                #         axs[0].axis('image')
-                #         axs[0].set_title('Raw captures' + str(i))
-                #         divider = make_axes_locatable(axs[0])
-                #         cax = divider.append_axes('right', size='5%', pad=0.05)
-                #         fig.colorbar(im, cax=cax, orientation='vertical')
+                        im = axs[0].imshow(oI_cap[0,idx,:,:].detach().cpu().numpy(), cmap='gray')
+                        axs[0].axis('image')
+                        axs[0].set_title('Raw captures' + str(i))
+                        divider = make_axes_locatable(axs[0])
+                        cax = divider.append_axes('right', size='5%', pad=0.05)
+                        fig.colorbar(im, cax=cax, orientation='vertical')
     
-                #         im = axs[1].imshow(oI_sub[0,idx,:,:].detach().cpu().numpy(), cmap="gray")
-                #         axs[1].axis('image')
-                #         axs[1].set_title('Guessed images' + str(i))
-                #         divider = make_axes_locatable(axs[1])
-                #         cax = divider.append_axes('right', size='5%', pad=0.05)
-                #         fig.colorbar(im, cax=cax, orientation='vertical')
+                        im = axs[1].imshow(oI_sub[0,idx,:,:].detach().cpu().numpy(), cmap="gray")
+                        axs[1].axis('image')
+                        axs[1].set_title('Guessed images' + str(i))
+                        divider = make_axes_locatable(axs[1])
+                        cax = divider.append_axes('right', size='5%', pad=0.05)
+                        fig.colorbar(im, cax=cax, orientation='vertical')
                         
-                #         # plt.savefig('./vis/' + 'Compare ' + str(i) + '.png')
-                #         plt.show()
+                        # plt.savefig('./vis/' + 'Compare ' + str(i) + '.png')
+                        plt.show()
 
         scheduler.step()
     
