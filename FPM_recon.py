@@ -82,8 +82,8 @@ def get_sub_spectrum(img_complex, led_num, x_0, y_0, x_1, y_1, spectrum_mask,epo
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--num_epochs', default=100, type=int)
-    parser.add_argument('--lr_decay_step', default=30, type=int)
+    parser.add_argument('--num_epochs', default=20, type=int)
+    parser.add_argument('--lr_decay_step', default=7, type=int)
     parser.add_argument('--num_feats', default=32, type=int)
     parser.add_argument('--fit_3D',default=True, action='store_true')
     args = parser.parse_args()
@@ -316,14 +316,13 @@ if __name__ == "__main__":
         led_idices = led_idices + list(np.random.choice(led_idices, _fill, replace=False))
 
         if fit_3D:
-            # dzs = torch.rand(6).to(device) * 25 - 5
-            # if epoch % 2 == 0:
-            #     dzs = torch.FloatTensor([-1.2500, 1.7500, 4.7500, 7.7500, 10.7500, 13.7500, 16.7500, 19.7500]).to(device)
-            
+            dzs = torch.rand(6).to(device) * 25 - 5
+            if epoch % 2 == 0:
+                dzs = torch.FloatTensor([-10, -1.2500, 1.7500, 4.7500, 7.7500, 10.7500, 13.7500, 16.7500, 19.7500]).to(device)
+                # dzs = torch.FloatTensor([-10, -1.00, 4.00, 9.00, 14.00, 19.00]).to(device)
             
             ############################# Modified to single plane 
-            ############################# Not working at large defocus distance (single plane)
-            dzs = torch.FloatTensor([20.0]).to(device)
+            # dzs = torch.FloatTensor([20.0]).to(device)
         
         else:
             dzs = torch.FloatTensor([0.0]).to(device)
@@ -341,10 +340,8 @@ if __name__ == "__main__":
                 dfmask = torch.exp(1j * kzz.repeat(dz.shape[0], 1, 1) * dz[:, None, None].repeat(1, kzz.shape[1], kzz.shape[2]))
                 led_num = led_idices[it * led_batch_size: (it + 1) * led_batch_size]
                 dfmask = dfmask.unsqueeze(1).repeat(1, len(led_num), 1, 1)
-                ##################################### bug fixed here
                 spectrum_mask_ampli = Pupil0.repeat(len(dz), len(led_num), 1, 1) * torch.abs(dfmask)
-                # phase should be summation
-                spectrum_mask_phase = Pupil0.repeat(len(dz), len(led_num), 1, 1) * (torch.angle(dfmask) + 0)
+                spectrum_mask_phase = Pupil0.repeat(len(dz), len(led_num), 1, 1) * (torch.angle(dfmask) + 0) # 0 represent Pupil0 Phase
                 spectrum_mask = spectrum_mask_ampli * torch.exp(1j*spectrum_mask_phase)
                 
                 img_ampli, img_phase = model_fn(dz)
@@ -369,7 +366,7 @@ if __name__ == "__main__":
                 optimizer.step()
                 
                 # # For debug purpose: Sanity check oI_cap and oI_sub
-                # if epoch == 100:
+                # if epoch == 10:
                 #     for idx in range((oI_cap.size())[1]):
                 #         i = it*led_batch_size + idx
                 #         fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
@@ -388,7 +385,7 @@ if __name__ == "__main__":
                 #         cax = divider.append_axes('right', size='5%', pad=0.05)
                 #         fig.colorbar(im, cax=cax, orientation='vertical')
                         
-                #         # plt.savefig('./vis/' + 'Compare ' + str(i) + '.png')
+                #         plt.savefig('./vis/' + 'Compare ' + str(i) + '.png')
                 #         plt.show()
 
         scheduler.step()
@@ -416,21 +413,21 @@ if __name__ == "__main__":
 
             plt.savefig(f'{vis_dir}/e_{epoch}.png')
 
-        # if fit_3D and (epoch % 5 == 0 or epoch == num_epochs) and epoch > 0:
-        #     # Render a focal sweep from 0 to 1
-        #     dz = (torch.arange(60) / 59.0).to(device).view(60)
-        #     dz = dz * 2.5 - 0.5
-        #     dz = dz * 10
-        #     with torch.no_grad():
-        #         out = []
-        #         for z in torch.chunk(dz, 32):
-        #             img_real, img_imag = model(z)
-        #             _img_complex = torch.complex(img_real, img_imag)
-        #             out.append(_img_complex)
-        #         img_complex = torch.cat(out, dim=0)
-        #     _imgs = img_complex.abs().cpu().detach().numpy() ** 2
-        #     imgs = (_imgs - _imgs.min()) / (_imgs.max() - _imgs.min())
-        #     imageio.mimsave(f'{vis_dir}/vid/{epoch}.mp4', np.uint8(imgs * 255), fps=15, quality=8)
+        if fit_3D and (epoch % 5 == 0 or epoch == num_epochs) and epoch > 0:
+            # Render a focal sweep from 0 to 1
+            dz = (torch.arange(60) / 59.0).to(device).view(60)
+            dz = dz * 3 - 1
+            dz = dz * 10
+            with torch.no_grad():
+                out = []
+                for z in torch.chunk(dz, 32):
+                    img_ampli, img_phase = model(z)
+                    _img_complex = img_ampli * torch.exp(1j*img_phase)
+                    out.append(_img_complex)
+                img_complex = torch.cat(out, dim=0)
+            _imgs = img_complex.abs().cpu().detach().numpy() ** 2
+            imgs = (_imgs - _imgs.min()) / (_imgs.max() - _imgs.min())
+            imageio.mimsave(f'{vis_dir}/vid/{epoch}.mp4', np.uint8(imgs * 255), fps=15, quality=8)
 
 
     # # For save debug video
