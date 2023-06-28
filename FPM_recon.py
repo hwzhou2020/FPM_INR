@@ -316,9 +316,9 @@ if __name__ == "__main__":
         led_idices = led_idices + list(np.random.choice(led_idices, _fill, replace=False))
 
         if fit_3D:
-            dzs = torch.rand(6).to(device) * 25 - 5
+            dzs = torch.rand(6).to(device) * 30 - 10
             if epoch % 2 == 0:
-                dzs = torch.FloatTensor([-10, -1.2500, 1.7500, 4.7500, 7.7500, 10.7500, 13.7500, 16.7500, 19.7500]).to(device)
+                dzs = torch.FloatTensor([-10.00, -1.50, 1.75, 4.75, 7.75, 10.75, 13.75, 16.75, 19.75]).to(device)
                 # dzs = torch.FloatTensor([-10, -1.00, 4.00, 9.00, 14.00, 19.00]).to(device)
             
             ############################# Modified to single plane 
