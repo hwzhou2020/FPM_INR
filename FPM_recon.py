@@ -316,10 +316,10 @@ if __name__ == "__main__":
         led_idices = led_idices + list(np.random.choice(led_idices, _fill, replace=False))
 
         if fit_3D:
-            dzs = torch.rand(6).to(device) * 30 - 10
-            if epoch % 2 == 0:
+            dzs = torch.rand(3).to(device) * 30 - 10
+            if epoch % 3 == 0:
                 dzs = torch.FloatTensor([-10.00, -1.50, 1.75, 4.75, 7.75, 10.75, 13.75, 16.75, 19.75]).to(device)
-                # dzs = torch.FloatTensor([-10, -1.00, 4.00, 9.00, 14.00, 19.00]).to(device)
+                # dzs = torch.FloatTensor([-20, -15, -10,  -5,   0,   5,  10,  15, 20]).to(device)
             
             ############################# Modified to single plane 
             # dzs = torch.FloatTensor([20.0]).to(device)
@@ -415,7 +415,7 @@ if __name__ == "__main__":
 
         if fit_3D and (epoch % 5 == 0 or epoch == num_epochs) and epoch > 0:
             # Render a focal sweep from 0 to 1
-            dz = (torch.arange(60) / 59.0).to(device).view(60)
+            dz = (torch.arange(121) / 120.0).to(device).view(121)
             dz = dz * 3 - 1
             dz = dz * 10
             with torch.no_grad():
@@ -427,7 +427,7 @@ if __name__ == "__main__":
                 img_complex = torch.cat(out, dim=0)
             _imgs = img_complex.abs().cpu().detach().numpy() ** 2
             imgs = (_imgs - _imgs.min()) / (_imgs.max() - _imgs.min())
-            imageio.mimsave(f'{vis_dir}/vid/{epoch}.mp4', np.uint8(imgs * 255), fps=15, quality=8)
+            imageio.mimsave(f'{vis_dir}/vid/{epoch}.mp4', np.uint8(imgs * 255), fps=5, quality=8)
 
 
     # # For save debug video
