@@ -14,6 +14,7 @@ import torch.nn.functional as F
 
 from network import FullModel
 from utils import newcmp
+from utils import save_model_with_required_grad
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -25,56 +26,6 @@ def get_sub_spectrum(img_complex, led_num, x_0, y_0, x_1, y_1, spectrum_mask,epo
     O_sub = O_sub * spectrum_mask
     o_sub = torch.fft.ifft2(torch.fft.ifftshift(O_sub))
     oI_sub = torch.abs(o_sub)
-
-    # # For debug purpose: Sanity check spectrum mask, oI_sub, and oI_cap
-    
-    # if epoch % 100 == 0 and epoch != 0:
-    #     for idx in range((oI_sub.size())[1]):
-    #         fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(10, 10))
-        
-    #         im = axs[0,0].imshow(np.log(np.abs(O_sub[0,idx,:,:].detach().cpu().numpy())+1), cmap='gray')
-    #         axs[0,0].axis('image')
-    #         axs[0,0].set_title('Reconstructed spectrum')
-    #         divider = make_axes_locatable(axs[0,0])
-    #         cax = divider.append_axes('right', size='5%', pad=0.05)
-    #         fig.colorbar(im, cax=cax, orientation='vertical')
-        
-    #         im = axs[0,1].imshow(np.angle(spectrum_mask[0,idx,:,:].detach().cpu().numpy()), cmap="gray")
-    #         axs[0,1].axis('image')
-    #         axs[0,1].set_title('Sub aperture phase')
-    #         divider = make_axes_locatable(axs[0,1])
-    #         cax = divider.append_axes('right', size='5%', pad=0.05)
-    #         fig.colorbar(im, cax=cax, orientation='vertical')
-             
-    #         im = axs[1,0].imshow(oI_cap[0,idx,:,:].detach().cpu().numpy(), cmap='gray')
-    #         axs[1,0].axis('image')
-    #         axs[1,0].set_title('Raw capture')
-    #         divider = make_axes_locatable(axs[1,0])
-    #         cax = divider.append_axes('right', size='5%', pad=0.05)
-    #         fig.colorbar(im, cax=cax, orientation='vertical')
-        
-    #         im = axs[1,1].imshow(oI_sub[0,idx,:,:].detach().cpu().numpy(), cmap="gray")
-    #         axs[1,1].axis('image')
-    #         axs[1,1].set_title('Guessed capture')
-    #         divider = make_axes_locatable(axs[1,1])
-    #         cax = divider.append_axes('right', size='5%', pad=0.05)
-    #         fig.colorbar(im, cax=cax, orientation='vertical')
-        
-    #         # im = axs[1,0].imshow(np.abs(spectrum_mask[0,idx,:,:].detach().cpu().numpy()), cmap='gray')
-    #         # axs[1,0].axis('image')
-    #         # axs[1,0].set_title('Sub aperture amplitude')
-    #         # divider = make_axes_locatable(axs[1,0])
-    #         # cax = divider.append_axes('right', size='5%', pad=0.05)
-    #         # fig.colorbar(im, cax=cax, orientation='vertical')
-        
-    #         # im = axs[1,1].imshow(np.angle(spectrum_mask[0,idx,:,:].detach().cpu().numpy()), cmap="gray")
-    #         # axs[1,1].axis('image')
-    #         # axs[1,1].set_title('Sub aperture phase')
-    #         # divider = make_axes_locatable(axs[1,1])
-    #         # cax = divider.append_axes('right', size='5%', pad=0.05)
-    #         # fig.colorbar(im, cax=cax, orientation='vertical')
-    
-    #         plt.show()
     
     return oI_sub
 
@@ -100,7 +51,6 @@ if __name__ == "__main__":
     os.makedirs(vis_dir, exist_ok=True)
 
     if fit_3D:
-        # LED Matrix setup
         # Load data
         I = np.load('data/I_800_800_225.npy')
 
@@ -109,11 +59,6 @@ if __name__ == "__main__":
         plt.imshow(I[:, :, 113], cmap='gray')
         plt.title('Raw data central frame preview')
         plt.savefig(f'{vis_dir}/raw_data.png')
-
-        plt.figure(dpi=200)
-        plt.imshow(I[:, :, 113], cmap='gray')
-        plt.title('Raw data cropped preview')
-        plt.savefig(f'{vis_dir}/raw_data_cropped.png')
 
         # Raw measurement sidelength
         M = I.shape[0]
@@ -153,7 +98,7 @@ if __name__ == "__main__":
         # Roverlap = 1 / np.pi * (2 * np.arccos(1 / 2 / RLED) - 1 / RLED * np.sqrt(1 - (1 / 2 / RLED) ** 2))
         
         # Calculate upsampliing ratio
-        MAGimg = np.ceil(1 + 2 * D_pixel * (ledM - 1) / 2 * D_led / np.sqrt(((ledM - 1) / 2 * D_led) ** 2 + h ** 2) / wavelength)
+        MAGimg = 2 # np.ceil(1 + 2 * D_pixel * (ledM - 1) / 2 * D_led / np.sqrt(((ledM - 1) / 2 * D_led) ** 2 + h ** 2) / wavelength)
         # Upsampled pixel count 
         MM = int(M * MAGimg)
         NN = int(N * MAGimg)
@@ -176,10 +121,10 @@ if __name__ == "__main__":
         NAillu = np.sqrt(u**2 + v**2)
         
         # Define LEDs to use
-        IdxUseMask = NAillu<=NA-0.05
+        # IdxUseMask = NAillu <= NA # Synthetic_NA = NA + NA
+        IdxUseMask = np.sqrt((hhled)**2 + (vvled)**2)<=7 # 145 LEDs used
         ID_len = np.sum(IdxUseMask)
-        
-        # Sort the sequence
+
         u_use, v_use = np.zeros((ID_len)), np.zeros((ID_len))
         hhled_use, vvled_use = np.zeros((ID_len)), np.zeros((ID_len))
         I_idx_use = np.zeros((ID_len)).astype('int')
@@ -190,12 +135,11 @@ if __name__ == "__main__":
                 if IdxUseMask[i,j] != 0:
                     u_use[count], v_use[count] = u[i,j], v[i,j] 
                     hhled_use[count], vvled_use[count] = hhled[i,j], vvled[i,j]
-                    # I_idx_use[count] = int(j + i * ledN)
-                    Isum[:,:,count] = I[:,:,int(j + i * ledN)]
+                    I_idx_use[count] = int(j + i * ledN)
                     count += 1
-        # Isum = I[:,:,I_idx_use]
+        Isum = I[:,:,I_idx_use]
         
-        # NA shift in pixel from the LED oblique illuminations
+        # NA shift in pixel from different LED illuminations
         ledpos_true = np.zeros((ID_len, 2), dtype=int)
         count = 0
         for idx in range(ID_len):
@@ -235,10 +179,10 @@ if __name__ == "__main__":
         kmax = NA * k0
         # NA pre-calibration data
         NA_shift_corrected = sio.loadmat('data/illu_NA_20210503_H5095.mat')['NA_shift_corrected']
-        NA_illu_max = np.max(np.sqrt(NA_shift_corrected[:, 0]**2 + NA_shift_corrected[:,1]**2));
         
         # Calculate upsampliing ratio
-        MAGimg = 2 #np.ceil(1+2*D_pixel*NA_illu_max/lambda); %upsampling rate
+        # NA_illu_max = np.max(np.sqrt(NA_shift_corrected[:, 0]**2 + NA_shift_corrected[:,1]**2));
+        MAGimg = 2 # np.ceil(1+2*D_pixel*NA_illu_max/wavelength) # upsampling rate
         MM = int(M*MAGimg)
         NN = int(N*MAGimg)  
         # Central of ROI
@@ -265,15 +209,13 @@ if __name__ == "__main__":
             ledpos_true[i, 1] = np.argmin(Fy1_temp)
         # Raw data for use
         Isum = imlow[int(cy-N/2): int(cy+N/2), int(cx-M/2):int(cx+M/2), :]
-
+    
     # Raw measurements
     Isum = Isum.astype('float64')
-    # Isum = Isum / np.max(Isum)
 
     # Define angular spectrum
     kxx, kyy = np.meshgrid(Fxx1[:M], Fxx1[:N])
-    kxx = kxx - np.mean(kxx)
-    kyy = kyy - np.mean(kyy)
+    kxx, kyy = kxx - np.mean(kxx), kyy - np.mean(kyy)
     krr = np.sqrt(kxx ** 2 + kyy ** 2)
     mask_k = k0 ** 2 - krr ** 2 > 0
     kzz_ampli = mask_k * np.abs(np.sqrt((k0 ** 2 - krr.astype('complex64') ** 2)) )  ########## fixed bug here 
@@ -282,10 +224,8 @@ if __name__ == "__main__":
 
     # Define Pupil support        
     Fx1, Fy1 = np.meshgrid(np.arange(-N / 2, N / 2), np.arange(-M / 2, M / 2))
-    Fx1 = Fx1 / (N * D_pixel) * (2 * np.pi)
-    Fy1 = Fy1 / (M * D_pixel) * (2 * np.pi)
-    Fx2 = Fx1 ** 2
-    Fy2 = Fy1 ** 2
+    Fx2 = (Fx1 / (N * D_pixel) * (2 * np.pi)) ** 2
+    Fy2 = (Fy1 / (M * D_pixel) * (2 * np.pi)) ** 2
     Fxy2 = Fx2 + Fy2
     Pupil0 = np.zeros((M, N))
     Pupil0[Fxy2 <= (kmax ** 2)] = 1
@@ -294,6 +234,17 @@ if __name__ == "__main__":
     kzz = torch.from_numpy(kzz).to(device).unsqueeze(0)
     Isum = torch.from_numpy(Isum).to(device)
 
+    # Define depth of field of brightfield microscope for determine selected z-plane
+    DOF = 0.5 / NA**2 + pixel_size / mag / NA     # wavelength is emphrically set as 0.5 um
+    # z-slice separation (emphirically set)
+    delta_z = 1.2 * DOF
+    # z-range
+    z_max = 20.0
+    z_min = -10.0
+    # number of selected z-slices
+    num_z = int( np.ceil( (z_max - z_min) / delta_z ) )
+
+    # Define LED Batch size
     led_batch_size = 1
 
     model = FullModel(
@@ -302,8 +253,8 @@ if __name__ == "__main__":
         num_feats=num_feats,
         Pupil0=Pupil0,
         n_views=ID_len,
-        z_min=-10.0,
-        z_max=20.0
+        z_min=z_min,
+        z_max=z_max
     ).to(device)
 
     optimizer = torch.optim.Adam(lr=1e-3, params=model.parameters())
@@ -316,14 +267,10 @@ if __name__ == "__main__":
         led_idices = led_idices + list(np.random.choice(led_idices, _fill, replace=False))
 
         if fit_3D:
-            dzs = torch.rand(3).to(device) * 30 - 10
+            dzs = torch.rand(3).to(device) * (z_max - z_min) + z_min
             if epoch % 3 == 0:
-                dzs = torch.FloatTensor([-10.00, -1.50, 1.75, 4.75, 7.75, 10.75, 13.75, 16.75, 19.75]).to(device)
-                # dzs = torch.FloatTensor([-20, -15, -10,  -5,   0,   5,  10,  15, 20]).to(device)
-            
-            ############################# Modified to single plane 
-            # dzs = torch.FloatTensor([20.0]).to(device)
-        
+                # dzs = torch.FloatTensor([-10.00, -1.50, 1.75, 4.75, 7.75, 10.75, 13.75, 16.75, 19.75]).to(device)
+                dzs = torch.linspace(z_min,z_max,num_z).to(device)
         else:
             dzs = torch.FloatTensor([0.0]).to(device)
 
@@ -363,35 +310,11 @@ if __name__ == "__main__":
 
                 psnr = 10 * -torch.log10(mse_loss).item()
                 t.set_postfix(Loss = f'{loss.item():.4e}', PSNR = f'{psnr:.2f}')
-                optimizer.step()
-                
-                # # For debug purpose: Sanity check oI_cap and oI_sub
-                # if epoch == 10:
-                #     for idx in range((oI_cap.size())[1]):
-                #         i = it*led_batch_size + idx
-                #         fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
-    
-                #         im = axs[0].imshow(oI_cap[0,idx,:,:].detach().cpu().numpy(), cmap='gray')
-                #         axs[0].axis('image')
-                #         axs[0].set_title('Raw captures' + str(i))
-                #         divider = make_axes_locatable(axs[0])
-                #         cax = divider.append_axes('right', size='5%', pad=0.05)
-                #         fig.colorbar(im, cax=cax, orientation='vertical')
-    
-                #         im = axs[1].imshow(oI_sub[0,idx,:,:].detach().cpu().numpy(), cmap="gray")
-                #         axs[1].axis('image')
-                #         axs[1].set_title('Guessed images' + str(i))
-                #         divider = make_axes_locatable(axs[1])
-                #         cax = divider.append_axes('right', size='5%', pad=0.05)
-                #         fig.colorbar(im, cax=cax, orientation='vertical')
-                        
-                #         plt.savefig('./vis/' + 'Compare ' + str(i) + '.png')
-                #         plt.show()
+                optimizer.step()      
 
         scheduler.step()
     
         if epoch % 100 == 0 or (epoch % 10 == 0 and epoch < 50) or epoch == num_epochs:
-            # img_complex = img_complex[0]
             amplitude = (img_ampli[0]).cpu().detach().numpy() ** 2
             phase = (img_phase[0]).cpu().detach().numpy()
 
@@ -414,10 +337,7 @@ if __name__ == "__main__":
             plt.savefig(f'{vis_dir}/e_{epoch}.png')
 
         if fit_3D and (epoch % 5 == 0 or epoch == num_epochs) and epoch > 0:
-            # Render a focal sweep from 0 to 1
-            dz = (torch.arange(121) / 120.0).to(device).view(121)
-            dz = dz * 3 - 1
-            dz = dz * 10
+            dz = torch.linspace(z_min,z_max,121).to(device).view(121)
             with torch.no_grad():
                 out = []
                 for z in torch.chunk(dz, 32):
@@ -425,14 +345,10 @@ if __name__ == "__main__":
                     _img_complex = img_ampli * torch.exp(1j*img_phase)
                     out.append(_img_complex)
                 img_complex = torch.cat(out, dim=0)
-            _imgs = img_complex.abs().cpu().detach().numpy() ** 2
+            _imgs = img_complex.abs().cpu().detach().numpy()
+            # Save amplitude 
             imgs = (_imgs - _imgs.min()) / (_imgs.max() - _imgs.min())
             imageio.mimsave(f'{vis_dir}/vid/{epoch}.mp4', np.uint8(imgs * 255), fps=5, quality=8)
 
-
-    # # For save debug video
-    # writer = imageio.get_writer('./vis/Compare.mp4', fps=3)
-    
-    # for ids in range(64):
-    #     writer.append_data(imageio.imread('./vis/' + 'Compare ' + str(ids) + '.png'))
-    # writer.close()
+    save_path = 'trained_model.pth'
+    save_model_with_required_grad(model, save_path)
