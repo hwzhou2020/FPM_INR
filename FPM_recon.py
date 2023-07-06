@@ -52,7 +52,9 @@ if __name__ == "__main__":
 
     if fit_3D:
         # Load data
-        I = np.load('data/I_800_800_225.npy')
+        color = ['r']
+    
+        I = sio.loadmat('data/Thyroid_'+color+'.mat')['I'].astype('float32') / 255
 
         # Raw data central frame preview
         plt.figure(dpi=200)
@@ -72,7 +74,13 @@ if __name__ == "__main__":
         # Distance from central LED to sample (unit: um)
         h = 66000
         # LED central wavelength
-        wavelength = 0.5226  # um
+        if color == 'r':
+            wavelength = 0.617  # um
+        elif  color == 'g':
+            wavelength = 0.5226  # um
+        elif color =='b':
+            wavelength = 0.465 # um
+            
         # free-space k-vector
         k0 = 2 * np.pi / wavelength
         # Objective lens magnification
