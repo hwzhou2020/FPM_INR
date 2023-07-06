@@ -200,7 +200,7 @@ if __name__ == "__main__":
     print('FPM-INR AIF_LF time elpased: ', np.round(end_time - start_time,2),'s')
     
     # Load ground truth
-    o_set  = np.abs(mat73.loadmat('data/20190113_Thyroid_NB11796113_pap_5_b_stack_0219.mat')['o_set']).astype('float32')
+    o_set  = np.abs(mat73.loadmat('data/20190113_Thyroid_NB11796113_pap_5_g_stack_0219.mat')['o_set']).astype('float32')
     _imgs_gt = torch.from_numpy(np.moveaxis(o_set,-1,0)).to(device)
     imgs_gt = (_imgs_gt - _imgs_gt.min()) / (_imgs_gt.max() - _imgs_gt.min())
 
