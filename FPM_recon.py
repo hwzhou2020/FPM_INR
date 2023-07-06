@@ -18,7 +18,7 @@ from utils import save_model_with_required_grad
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-def get_sub_spectrum(img_complex, led_num, x_0, y_0, x_1, y_1, spectrum_mask,epoch, oI_cap):
+def get_sub_spectrum(img_complex, led_num, x_0, y_0, x_1, y_1, spectrum_mask):
     O = torch.fft.fftshift(torch.fft.fft2(img_complex))
     O_sub = torch.stack([
         O[:, x_0[i]:x_1[i], y_0[i]:y_1[i]]  for i in range(len(led_num))
@@ -300,7 +300,7 @@ if __name__ == "__main__":
                 oI_cap = torch.sqrt(Isum[:, :, led_num])
                 oI_cap = oI_cap.permute(2, 0, 1).unsqueeze(0).repeat(len(dz), 1, 1, 1)
                 
-                oI_sub = get_sub_spectrum(img_complex, led_num, x_0, y_0, x_1, y_1, spectrum_mask, epoch, oI_cap)
+                oI_sub = get_sub_spectrum(img_complex, led_num, x_0, y_0, x_1, y_1, spectrum_mask)
                     
                 l1_loss = F.smooth_l1_loss(oI_cap, oI_sub)
                 loss = l1_loss
