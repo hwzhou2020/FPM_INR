@@ -16,6 +16,14 @@ from network import FullModel
 from utils import newcmp
 from utils import save_model_with_required_grad
 
+torch.manual_seed(0)
+
+torch.backends.cudnn.benchmark = False
+
+torch.backends.cudnn.deterministic = True
+
+torch.cuda.empty_cache()
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def get_sub_spectrum(img_complex, led_num, x_0, y_0, x_1, y_1, spectrum_mask):
@@ -52,7 +60,7 @@ if __name__ == "__main__":
 
     if fit_3D:
         # Load data
-        color = ['r']
+        color = 'b'
     
         I = sio.loadmat('data/Thyroid_'+color+'.mat')['I'].astype('float32') / 255
 
