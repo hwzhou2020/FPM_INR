@@ -227,11 +227,17 @@ if __name__ == "__main__":
     ax[2].set_title('FPM-INR AIF_NV Image')
     ax[2].axis('off')
     
-    mse_fpm = F.mse_loss(torch.from_numpy(img_AIFNV_FPM).to(device), torch.from_numpy(img_AIFNV_GT).to(device))
+    mse_fpm = F.mse_loss(torch.from_numpy(img_AIFNV_FPM - np.mean(img_AIFNV_FPM)).to(device), 
+                         torch.from_numpy(img_AIFNV_GT  - np.mean(img_AIFNV_GT)).to(device))
     psnr_fpm = 10 * -torch.log10(mse_fpm).item()
     
-    mse_inr = F.mse_loss(torch.from_numpy(img_AIFNV_INR).to(device), torch.from_numpy(img_AIFNV_GT).to(device))
+    mse_inr = F.mse_loss(torch.from_numpy(img_AIFNV_INR - np.mean(img_AIFNV_INR)).to(device), 
+                         torch.from_numpy(img_AIFNV_GT  - np.mean(img_AIFNV_GT)).to(device))
     psnr_inr = 10 * -torch.log10(mse_inr).item()
     
-    print('MSE: ',np.round(mse_fpm.item(),5),np.round(mse_inr.item(),5))
-    print('PSNR: ', np.round(psnr_fpm,2),np.round(psnr_inr,2))
+    print('MSE FPM: ',np.round(mse_fpm.item(),5))
+    print('MSE INR: ',np.round(mse_inr.item(),5))
+    print('PSNR FPM: ', np.round(psnr_fpm,2))
+    print('PSNR INR: ',np.round(psnr_inr,2))
+    
+    
