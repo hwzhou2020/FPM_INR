@@ -108,8 +108,8 @@ if __name__ == "__main__":
 
     # Parameters
     num_feats = 32
-    M = 800 # image size
-    N = 800
+    M = 1024 # image size
+    N = 1024
     # LED central wavelength
     wavelength = 0.5226  # um
     # free-space k-vector
@@ -155,7 +155,7 @@ if __name__ == "__main__":
     # Define LED Batch size
     led_batch_size = 1
 
-    model = FullModel_v2(
+    model = FullModel(
         w=MM,
         h=MM,
         num_feats=num_feats,
