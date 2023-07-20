@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from utils import load_model_with_required_grad
-from network import FullModel
+from network import FullModel,FullModel_v2
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -72,8 +72,8 @@ def AIF_NV(imgs_gt):
     
     o_fusion = np.zeros((m, n))
     
-    patchsize = 50
-    patchpace = 10
+    patchsize = 64
+    patchpace = 16
     Iternum, balancemap = CreateBalanceMap(m, patchsize, patchpace)
     
     for i in range(Iternum):
@@ -91,7 +91,7 @@ def AIF_NV(imgs_gt):
                 if background > 0.1:
                     o_cropped[o_cropped > background] = background
                 
-                o_set[start_ud:end_ud, start_lr:end_lr, k] = o_cropped
+                imgs_gt[start_ud:end_ud, start_lr:end_lr, k] = o_cropped
                 
                 mu = np.mean(o_cropped)
                 NV.append(np.sum((o_cropped - mu) ** 2) / (patchsize ** 2 * mu))
@@ -155,7 +155,7 @@ if __name__ == "__main__":
     # Define LED Batch size
     led_batch_size = 1
 
-    model = FullModel(
+    model = FullModel_v2(
         w=MM,
         h=MM,
         num_feats=num_feats,
@@ -200,7 +200,7 @@ if __name__ == "__main__":
     print('FPM-INR AIF_LF time elpased: ', np.round(end_time - start_time,2),'s')
     
     # Load ground truth
-    o_set  = np.abs(mat73.loadmat('data/20190113_Thyroid_NB11796113_pap_5_g_stack_0219.mat')['o_set']).astype('float32')
+    o_set  = np.abs(mat73.loadmat('data/20190113_Thyroid_NB11796113_pap_5_b_stack_0219.mat')['o_set']).astype('float32')
     _imgs_gt = torch.from_numpy(np.moveaxis(o_set,-1,0)).to(device)
     imgs_gt = (_imgs_gt - _imgs_gt.min()) / (_imgs_gt.max() - _imgs_gt.min())
 
