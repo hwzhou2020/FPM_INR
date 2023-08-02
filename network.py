@@ -11,12 +11,12 @@ class G_Renderer(nn.Module):
         layers = []
         layers.append(nn.Linear(in_dim, hidden_dim))
         if use_layernorm:
-            layers.append(nn.LayerNorm(hidden_dim))
+            layers.append(nn.LayerNorm(hidden_dim, elementwise_affine=False))
         layers.append(act_fn)
         for _ in range(num_layers - 1):
             layers.append(nn.Linear(hidden_dim, hidden_dim))
             if use_layernorm:
-                layers.append(nn.LayerNorm(hidden_dim))
+                layers.append(nn.LayerNorm(hidden_dim, elementwise_affine=False))
             layers.append(act_fn)
 
         layers.append(nn.Linear(hidden_dim, out_dim))
