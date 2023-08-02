@@ -10,7 +10,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import torch
 import torch.nn.functional as F
 
-from network import FullModel, FullModel_v2
+from network import FullModel
 from utils import save_model_with_required_grad
 
 torch.manual_seed(0)
@@ -45,6 +45,9 @@ if __name__ == "__main__":
     parser.add_argument("--num_modes", default=512, type=int)
     parser.add_argument("--c2f", action="store_true")
     parser.add_argument("--fit_3D", default=True, action="store_true")
+    parser.add_argument("--layer_norm", action="store_true")
+    parser.add_argument("--amp", action="store_true")
+
     args = parser.parse_args()
 
     fit_3D = args.fit_3D
@@ -53,6 +56,8 @@ if __name__ == "__main__":
     num_modes = args.num_modes
     lr_decay_step = args.lr_decay_step
     use_c2f = args.c2f
+    use_layernorm = args.layer_norm
+    use_amp = args.amp
 
     vis_dir = f"./vis/feat{num_feats}"
 
@@ -194,9 +199,13 @@ if __name__ == "__main__":
         z_min=z_min,
         z_max=z_max,
         ds_factor=cur_ds,
+        use_layernorm=use_layernorm,
     ).to(device)
 
-    optimizer = torch.optim.Adam(lr=1e-3, params=model.parameters())
+    optimizer = torch.optim.Adam(
+        lr=1e-3,
+        params=filter(lambda p: p.requires_grad, model.parameters()),
+    )
     scheduler = torch.optim.lr_scheduler.StepLR(
         optimizer, step_size=lr_decay_step, gamma=0.1
     )
@@ -223,7 +232,8 @@ if __name__ == "__main__":
             model_fn = torch.jit.trace(model, dzs[0:1])
 
         if epoch == 0:
-            model_fn = torch.jit.trace(model, dzs[0:1])
+            # model_fn = torch.jit.trace(model, dzs[0:1])
+            model_fn = torch.compile(model, backend="inductor")
 
         for dz in dzs:
             dz = dz.unsqueeze(0)
@@ -247,22 +257,25 @@ if __name__ == "__main__":
                     1j * spectrum_mask_phase
                 )
 
-                img_ampli, img_phase = model_fn(dz)
-                img_complex = img_ampli * torch.exp(1j * img_phase)
-                uo, vo = ledpos_true[led_num, 0], ledpos_true[led_num, 1]
-                x_0, x_1 = vo - M // 2, vo + M // 2
-                y_0, y_1 = uo - N // 2, uo + N // 2
+                with torch.cuda.amp.autocast(enabled=use_amp, dtype=torch.bfloat16):
+                    img_ampli, img_phase = model_fn(dz)
+                    img_complex = img_ampli * torch.exp(1j * img_phase)
+                    uo, vo = ledpos_true[led_num, 0], ledpos_true[led_num, 1]
+                    x_0, x_1 = vo - M // 2, vo + M // 2
+                    y_0, y_1 = uo - N // 2, uo + N // 2
 
-                oI_cap = torch.sqrt(Isum[:, :, led_num])
-                oI_cap = oI_cap.permute(2, 0, 1).unsqueeze(0).repeat(len(dz), 1, 1, 1)
+                    oI_cap = torch.sqrt(Isum[:, :, led_num])
+                    oI_cap = (
+                        oI_cap.permute(2, 0, 1).unsqueeze(0).repeat(len(dz), 1, 1, 1)
+                    )
 
-                oI_sub = get_sub_spectrum(
-                    img_complex, led_num, x_0, y_0, x_1, y_1, spectrum_mask
-                )
+                    oI_sub = get_sub_spectrum(
+                        img_complex, led_num, x_0, y_0, x_1, y_1, spectrum_mask
+                    )
 
-                l1_loss = F.smooth_l1_loss(oI_cap, oI_sub)
-                loss = l1_loss
-                mse_loss = F.mse_loss(oI_cap, oI_sub)
+                    l1_loss = F.smooth_l1_loss(oI_cap, oI_sub)
+                    loss = l1_loss
+                    mse_loss = F.mse_loss(oI_cap, oI_sub)
 
                 loss.backward()
 
@@ -273,8 +286,8 @@ if __name__ == "__main__":
         scheduler.step()
 
         if epoch % 100 == 0 or (epoch % 10 == 0 and epoch < 50) or epoch == num_epochs:
-            amplitude = (img_ampli[0]).cpu().detach().numpy() ** 2
-            phase = (img_phase[0]).cpu().detach().numpy()
+            amplitude = (img_ampli[0].float()).cpu().detach().numpy() ** 2
+            phase = (img_phase[0].float()).cpu().detach().numpy()
 
             fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
 
