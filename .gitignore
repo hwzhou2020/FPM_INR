@@ -1,3 +1,7 @@
 ./data
 ./trained_models
+<<<<<<< HEAD
 ./vis
+=======
+./vis
+>>>>>>> 77a8fead1f1ed8c806a8bf0d310dad8bbf41eed1
