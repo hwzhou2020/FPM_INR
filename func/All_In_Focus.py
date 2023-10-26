@@ -1,3 +1,9 @@
+# Code for all-in-focus images using Normal Variance method
+# Written by Haowen Zhou and Mingshu Liang at Caltech biophotonics lab
+# Last modified on 10/26/2023
+
+# Contact: Haowen Zhou (hzhou7@caltech.edu), Mingshu Liang (mlliang@caltech.edu)
+
 import os
 import time
 import mat73
