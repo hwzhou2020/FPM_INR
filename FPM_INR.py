@@ -1,3 +1,9 @@
+# Main script for FPM-INR reconstruction
+# Written by Haowen Zhou and Brandon Y. Feng
+# Last modified on 10/26/2023
+# Contact: Haowen Zhou (hzhou7@caltech.edu) 
+
+
 import os
 import tqdm
 import mat73
@@ -50,6 +56,7 @@ if __name__ == "__main__":
     parser.add_argument("--amp", default=True, action="store_true")
     parser.add_argument("--sample", default="Siemens", type=str)
     parser.add_argument("--color", default="r", type=str)
+    parser.add_argument("--is_system", default="Linux", type=str) # "Windows". "Linux"
 
     args = parser.parse_args()
 
@@ -64,6 +71,7 @@ if __name__ == "__main__":
     
     sample = args.sample
     color = args.color
+    is_system = args.is_system
     
     sample_list = ["BloodSmearTilt", "sheepblood", "WU1005", "Siemens"]
     color_list = ['r', 'g', 'b']
@@ -334,8 +342,12 @@ if __name__ == "__main__":
             model_fn = torch.jit.trace(model, dzs[0:1])
 
         if epoch == 0:
-            model_fn = torch.jit.trace(model, dzs[0:1])
-            # model_fn = torch.compile(model, backend="inductor")
+            if is_os == "Windows":
+                model_fn = torch.jit.trace(model, dzs[0:1])
+            elif is_os == "Linux":
+                model_fn = torch.compile(model, backend="inductor")
+            else:
+                raise NotImplementedError
 
 
         for dz in dzs:
