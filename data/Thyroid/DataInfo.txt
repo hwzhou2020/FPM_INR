@@ -1,0 +1,5 @@
+Thyroid_r.mat
+Thyroid_g.mat
+Thyroid_b.mat
+
+Tyep: 3D
