@@ -2,4 +2,6 @@ Thyroid_r.mat
 Thyroid_g.mat
 Thyroid_b.mat
 
-Tyep: 3D
+Type: 3D
+
+Note this is under a different system setup compared to other samples.
