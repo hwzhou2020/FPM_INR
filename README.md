@@ -13,14 +13,14 @@ Top-level folder structure:
 ```
 .
 ├── data                    # File path for raw / preprocessed FPM data
-├── FPM_Matlab              # Matlab code for FPM with first-order optimization (**Parallel computing toolbox** needed)
-├── func                    # All-in-focus compuation using LightField method or normal variance method
+├── FPM_Matlab              # Matlab code for FPM with first-order optimization (Parallel computing toolbox needed)
+├── func                    # All-in-focus computation using LightField method or normal variance method
 ├── scripts                 # Scripts to run FPM-INR
 ├── trained_models          # reults save directory
 ├── vis                     # Result visualization
 ├── environment.txt         # Anaconda environment
-├── FPM_INR.py              # Main python script
-├── network.py              # INR nerual nework
+├── FPM_INR.py              # Main Python script
+├── network.py              # INR neural network
 ├── unils.py                # Utility functions
 └── README.md
 ```
