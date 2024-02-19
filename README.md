@@ -27,6 +27,55 @@ Top-level folder structure:
 └── README.md
 ```
 
+### Dependency
+```
+apt update && apt install -y wget git vim pip
+
+pip install -U matplotlib
+
+pip install -U scikit-image
+
+pip install mat73
+
+```
+
+To use torch.compile, pytorch version >= 2.0.0
+If only use torch.jit, pytorch version can be 1.xx.x
+
+Example of pytorch:
+```
+conda install pytorch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 pytorch-cuda=11.8 -c pytorch -c nvidia
+```
+
+Additional anaconda environment.yml file is provided
+
+
+### Download data
+
+Data source: https://doi.org/10.22002/7aer7-qhf77
+
+Example:
+```
+wget https://data.caltech.edu/records/7aer7-qhf77/files/Siemens_r.mat
+```
+
+### Erratum for data file name
+
+Please rename ```BloodSmearTilt_g.mat``` to ```BloodSmearTilt_r.mat```
+
+Please rename ```BloodSmearTilt_g_GT.mat``` to ```BloodSmearTilt_r_GT.mat``` 
+
+
+### Docker file
+
+Docker container is available at
+
+```
+docker pull hwzhou/inr-repo:fpm-inr
+```
+
+
+
 ## BiBTeX
 
 ```
