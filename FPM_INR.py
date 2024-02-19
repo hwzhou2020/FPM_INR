@@ -71,7 +71,7 @@ if __name__ == "__main__":
     
     sample = args.sample
     color = args.color
-    is_system = args.is_system
+    is_os = args.is_system
     
     sample_list = ["BloodSmearTilt", "sheepblood", "WU1005", "Siemens"]
     color_list = ['r', 'g', 'b']
