@@ -22,10 +22,13 @@ Top-level folder structure:
 ├── vis                     # Result visualization
 ├── environment.txt         # Anaconda environment
 ├── FPM_INR.py              # Main Python script
+├── FPM_INR_thyroid.py      # Main Python script for thyroid samples
 ├── network.py              # INR neural network
 ├── unils.py                # Utility functions
 └── README.md
 ```
+
+The thyroid sample was acquired from a different system setup compared to other samples. For convenience, we put it in a different python script. This is a demostration that our method is not limited to a specific FPM system setting and can be generaized to different FPM systems.
 
 ### Dependency
 ```
@@ -39,8 +42,9 @@ pip install mat73
 
 ```
 
-To use torch.compile, pytorch version >= 2.0.0
-If only use torch.jit, pytorch version can be 1.xx.x
+To use torch.compile '--is_system Linux', pytorch version >= 2.0.0
+
+If only use torch.jit '--is_system Windows', pytorch version can be 1.xx.x
 
 Example of pytorch:
 ```
