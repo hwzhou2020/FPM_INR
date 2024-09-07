@@ -1,14 +1,10 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% FPM reconstruction with first-order optimization method and pupil 
+% FPM reconstruction with first-order gradient descent method and pupil 
 % correction functionality
 
 % The code comes with GPU processing
-% Matlab parallel computing toolbox is required
-
-% If you do not have a GPU and do not want to use GPU, please delete
-% gpuArray() and gather() in the code
-
+% Matlab parallel computing toolbox is required for using GPU
 
 % This code is realted to the paper:
 % FPM-INR: Fourier ptychographic microscopy image stack reconstruction using implicit neural representations
@@ -27,30 +23,30 @@
 %% Code starts here
 clear all; clc;close all;
 
-
+addpath(genpath('../FPM_INR'))
 %% Operator
 F  = @(x) fftshift(fft2(ifftshift(x)));
 Ft = @(x) ifftshift(ifft2(fftshift(x)));
 logamp = @(x) log10(abs(x)+1);
 
 %%
-
-if_3D = false;
+use_GPU = true;
+if_3D = true;
 use_PupilCorrection = false;
 color = 'r';
 
-if if_3D:
-    sample_name = 'WU1005'; % 'Siemens', 'sheepblood'
-    dz_set = 0;
-else:
+if if_3D
+    sample_name = 'Siemens'; % 'sheepblood', 'WU1005'
+    dz_set = 0; % defocus distance
+else
     sample_name = 'BloodSmearTilt';
-    dz_set = -20:0.25:20;
-
+    dz_set = 0;%-20:0.25:20;
+end
 
 filename = [sample_name,'_',color,'.mat'];
 
 % load raw data
-fileName = ['../data/',sample_name,'/', filename];
+fileName = ['./data/',sample_name,'/', filename];
 load(fileName);
 
 %% Set all necessary parameters (Unit: um)
@@ -133,38 +129,50 @@ clear('I');
 
 %% 
 tic;
-
-o_set = gpuArray(zeros(M*MAGimg,N*MAGimg,length(dz_set)));
+if use_GPU
+    o_set = gpuArray(zeros(M*MAGimg,N*MAGimg,length(dz_set)));
+else
+    o_set = zeros(M*MAGimg,N*MAGimg,length(dz_set));
+end
 
 for dz = 1:length(dz_set)
 
-cmask = gpuArray(Pupil0);
-[kxx, kyy] = meshgrid(Fxx1(1:M),Fxx1(1:N));
-kxx = kxx - mean2(kxx);
-kyy = kyy - mean2(kyy);
-krr = sqrt(kxx.^2 + kyy.^2);
-
-kzz = sqrt(k0.^2 - krr.^2);
-% figure(1001), imagesc(angle(cmask.*exp(1i*kzz*dz)));
-dfmask = cmask.* gpuArray(exp(1i*kzz*dz_set(dz)));
-
-oI=gpuArray(imresize(Isum(:,:,1),MAGimg,'bilinear'));
-
-
-o=sqrt(oI);
-O=fftshift(fft2(o));
-Pupil=Pupil0;
-PupilSUM=O.*0;
-
-alpha=0.5;beta=0.1;
-
-% tic;
-for iter=1:Niter
-    error_now=0;
+    if use_GPU
+        cmask = gpuArray(Pupil0);
+    else
+        cmask = Pupil0;
+    end    
     
-    count = 0;
+    [kxx, kyy] = meshgrid(Fxx1(1:M),Fxx1(1:N));
+    kxx = kxx - mean2(kxx);
+    kyy = kyy - mean2(kyy);
+    krr = sqrt(kxx.^2 + kyy.^2);
+    
+    kzz = sqrt(k0.^2 - krr.^2);
+    % figure(1001), imagesc(angle(cmask.*exp(1i*kzz*dz)));
+    if use_GPU
+        dfmask = cmask.* gpuArray(exp(1i*kzz*dz_set(dz)));
+        oI=gpuArray(imresize(Isum(:,:,1),MAGimg,'bilinear'));
+    else
+        dfmask = cmask.* exp(1i*kzz*dz_set(dz));
+        oI=imresize(Isum(:,:,1),MAGimg,'bilinear');
+    end
+    
+    
+    o=sqrt(oI);
+    O=fftshift(fft2(o));
+    Pupil=Pupil0;
+    PupilSUM=O.*0;
+    
+    alpha=0.5;beta=0.1;
+    
+    % tic;
+    for iter=1:Niter
+        error_now=0;
+        
+        count = 0;
         for led_num=1:ID_len
-
+    
             uo=ledpos_true(led_num,1);
             vo=ledpos_true(led_num,2);
             
@@ -172,25 +180,30 @@ for iter=1:Niter
             o_bef=ifft2(fftshift(OP_bef));
             oI_bef=abs(o_bef).^2;
             
-            oI_cap=gpuArray(Isum(:,:,led_num));
+            if use_GPU
+                oI_cap=gpuArray(Isum(:,:,led_num));
+            else
+                oI_cap=Isum(:,:,led_num);
+            end
             if ((mean2(oI_cap)>0.1) && (mean2(oI_bef)>0.1)) || ((mean2(oI_cap)<0.1) && (mean2(oI_bef)<0.1))
                 o_aft=sqrt(oI_cap)./sqrt(oI_bef).*o_bef;
             else
                 o_aft=o_bef;
             end
-
+    
             OP_aft=fftshift(fft2(o_aft));
             
             OP_diff=(OP_aft-OP_bef);
             
             temp=O((vo-M/2):(vo-1+M/2),(uo-N/2):(uo-1+N/2));
             O((vo-M/2):(vo-1+M/2),(uo-N/2):(uo-1+N/2))=temp+...
-                alpha*abs(Pupil).*conj(Pupil).*OP_diff./max(max(abs(Pupil)))./(abs(Pupil).^2+1).*conj(dfmask);
-
-            if use_PupilCorrection:
+                alpha*abs(Pupil).*conj(Pupil).*OP_diff./max(max(abs(Pupil))) ...
+                ./(abs(Pupil).^2+1).*conj(dfmask);
+    
+            if use_PupilCorrection
                 Pupil=Pupil+...
                     beta*(abs(OP_bef).*conj(OP_bef)).*OP_diff./max(max(abs(temp)))./(abs(OP_bef).^2+1000).*Pupil0;
-            else:
+            else
                 Pupil=Pupil0.*exp(1i.*angle(Pupil));
             end
             
@@ -217,11 +230,11 @@ for iter=1:Niter
         
         error_bef = error_now;
         
-
+    
         spectrum=log(abs(O)+1);
         o=ifft2(fftshift(O));
         oI=abs(o).^2;
-
+    
         % subplot(1,2,1)
         % imshow(spectrum,[]);
         % title('Fourier spectrum');
@@ -231,13 +244,14 @@ for iter=1:Niter
         % pause(0.1)
         
         if(alpha == 0)
-            break; end
+            break; 
+        end
     end
-
+    
     time = toc
     o_set(:,:,dz) = o;
     oP=angle(o);
-
+    
     %%
     figure(1000);
     subplot(1,2,1), imagesc(oI/max(oI(:))), axis image, colormap gray; axis off; title('Amplitude');colorbar;
